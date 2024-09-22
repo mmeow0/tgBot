@@ -6,7 +6,7 @@ from config import BOT_TOKEN, DATABASE_URL
 from db import Database
 from handlers.messages import ADD_CAR_COMMAND, ALL_CARS_COMMAND, AVAILABLE_CARS_COMMAND, DELETE_CAR_COMMAND, RENT_CAR_COMMAND
 from handlers.user_handlers import UserHandlers
-from handlers.admin_handlers import AddCarStates, AdminHandlers, DeleteCarStates
+from handlers.admin_handlers import AddCarStates, AdminHandlers, CarClass, DeleteCarStates
 from handlers.startup_handlers import StartupHandlers
 import asyncio
 
@@ -34,7 +34,8 @@ async def main():
     dp.message.register(admin_handlers.start_add_car, lambda msg: ADD_CAR_COMMAND in msg.text)
     dp.message.register(admin_handlers.car_brand_entered, AddCarStates.waiting_for_brand)
     dp.message.register(admin_handlers.car_model_entered, AddCarStates.waiting_for_model)
-    dp.message.register(admin_handlers.car_class_entered, AddCarStates.waiting_for_class)
+    # dp.message.register(admin_handlers.car_class_entered, AddCarStates.waiting_for_class)
+    dp.callback_query.register(admin_handlers.car_class_entered,AddCarStates.waiting_for_class, lambda c: c.data in [CarClass.ECONOM, CarClass.COMFORT, CarClass.BUSINESS])
     dp.message.register(admin_handlers.car_photos_entered, AddCarStates.waiting_for_photo_urls)
 
     dp.message.register(admin_handlers.start_delete_car, lambda msg: DELETE_CAR_COMMAND in msg.text)

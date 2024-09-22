@@ -8,12 +8,18 @@ from config import ADMIN_ID
 logger = logging.getLogger(__name__)
 
 class DeleteCarStates(StatesGroup):
-        waiting_for_car_id = State()
+    waiting_for_car_id = State()
+
 class AddCarStates(StatesGroup):
     waiting_for_brand = State()
     waiting_for_model = State()
     waiting_for_class = State()
     waiting_for_photo_urls = State()
+
+class CarClass:
+    ECONOM = 'эконом'
+    COMFORT = 'комфорт'
+    BUSINESS = 'бизнес'
 
 class AdminHandlers:
     def __init__(self, db, bot):
@@ -29,24 +35,29 @@ class AdminHandlers:
             await message.reply("У вас нет прав на выполнение этой команды.")
             logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
 
-    # Получение марки автомобиля и запрос модели
     async def car_brand_entered(self, message: types.Message, state: FSMContext):
         await state.update_data(brand=message.text)
         await message.reply("Введите модель автомобиля:")
         await state.set_state(AddCarStates.waiting_for_model)
 
-    # Получение модели автомобиля и запрос класса
     async def car_model_entered(self, message: types.Message, state: FSMContext):
         await state.update_data(model=message.text)
-        await message.reply("Введите класс автомобиля:")
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="Эконом", callback_data=CarClass.ECONOM),
+                types.InlineKeyboardButton(text="Комфорт", callback_data=CarClass.COMFORT),
+                types.InlineKeyboardButton(text="Бизнес", callback_data=CarClass.BUSINESS),
+            ]
+        ])
+        await message.reply("Выберите класс автомобиля:", reply_markup=keyboard)
         await state.set_state(AddCarStates.waiting_for_class)
 
-    async def car_class_entered(self, message: types.Message, state: FSMContext):
-        await state.update_data(car_class=message.text)
-        await message.reply("Введите URL фотографий автомобиля через пробел:")
+    async def car_class_entered(self, callback_query: types.CallbackQuery, state: FSMContext):
+        car_class = callback_query.data
+        await state.update_data(car_class=car_class)
+        await callback_query.message.reply("Введите URL фотографий автомобиля через пробел:")
         await state.set_state(AddCarStates.waiting_for_photo_urls)
 
-    # Получение фото и завершение добавления автомобиля
     async def car_photos_entered(self, message: types.Message, state: FSMContext):
         photo_urls = message.text.split()
         data = await state.get_data()
@@ -67,7 +78,6 @@ class AdminHandlers:
         # Сбрасываем состояние
         await state.clear()
 
-
     async def start_delete_car(self, message: types.Message, state: FSMContext):
         if str(message.from_user.id) == ADMIN_ID:
             await message.reply("Введите ID автомобиля для удаления:")
@@ -76,14 +86,12 @@ class AdminHandlers:
             await message.reply("У вас нет прав на выполнение этой команды.")
             logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
 
-
     async def confirm_delete_car(self, message: types.Message, state: FSMContext):
         if str(message.from_user.id) == ADMIN_ID:
             try:
                 car_id = int(message.text)
                 logger.info(f"Пользователь {message.from_user.id} запрашивает удаление автомобиля с ID {car_id}")
 
-                # Проверяем, существует ли автомобиль перед удалением
                 existing_car = await self.db.get_car_by_id(car_id)
                 if not existing_car:
                     await message.reply(f"Автомобиль с ID {car_id} не найден.")
@@ -91,7 +99,6 @@ class AdminHandlers:
                     await state.clear()
                     return
 
-                # Удаляем автомобиль
                 success = await self.db.delete_car(car_id)
 
                 if success:
@@ -107,11 +114,10 @@ class AdminHandlers:
                 await message.reply(f'Ошибка: {str(e)}')
                 logger.error(f"Ошибка при удалении автомобиля: {e}")
             finally:
-                await state.clear()  # Очистка состояния после завершения
+                await state.clear()
         else:
             await message.reply("У вас нет прав на выполнение этой команды.")
             logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
-
 
     async def view_cars(self, message: types.Message):
         if str(message.from_user.id) == ADMIN_ID:
