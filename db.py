@@ -57,3 +57,8 @@ class Database:
     async def get_all_cars(self):
         async with self.pool.acquire() as connection:
             return await connection.fetch('SELECT * FROM cars')
+
+    async def get_cars_by_class(self, car_class):
+        async with self.pool.acquire() as connection:
+            query = "SELECT * FROM cars WHERE car_class = $1"
+            return await connection.fetch(query, car_class)
