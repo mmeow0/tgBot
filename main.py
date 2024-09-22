@@ -1,6 +1,6 @@
 import logging
 import asyncpg
-from aiogram import Bot, Dispatcher, types
+from aiogram import F, Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, ADMIN_ID, DATABASE_URL
@@ -33,7 +33,7 @@ dp = Dispatcher(storage=storage)
 db_pool = None
 
 # Команда для добавления автомобиля
-@dp.message(Command('add_car'))
+@dp.message(F.text.lower() == "добавить автомобиль")
 async def add_car(message: types.Message):
     logger.info(f"Пользователь {message.from_user.id} пытается добавить автомобиль")
     if str(message.from_user.id) == ADMIN_ID:
@@ -103,7 +103,7 @@ async def rent_car(message: types.Message):
         logger.error(f"Ошибка при аренде автомобиля: {e}")
 
 # Команда для просмотра доступных автомобилей
-@dp.message(Command('available_cars'))
+@dp.message(F.text.lower() == "доступные автомобили")
 async def available_cars(message: types.Message):
     try:
         logger.info(f"Пользователь {message.from_user.id} запрашивает доступные автомобили")
@@ -121,6 +121,37 @@ async def available_cars(message: types.Message):
     except Exception as e:
         await message.reply(f'Ошибка: {str(e)}')
         logger.error(f"Ошибка при запросе доступных автомобилей: {e}")
+
+async def send_welcome(message: types.Message):
+    user_id = message.from_user.id
+    if str(user_id) == ADMIN_ID:
+        kb = [
+            [
+                types.KeyboardButton(text="Доступные автомобили"),
+                types.KeyboardButton(text="Добавить автомобиль")
+            ],
+        ]
+        keyboard = types.ReplyKeyboardMarkup(
+            keyboard=kb,
+            resize_keyboard=True,
+            input_field_placeholder="Выберите команду"
+        )
+        await message.answer("Добро пожаловать, администратор!", reply_markup=keyboard)
+    else:
+        kb = [
+            [
+                types.KeyboardButton(text="Арендовать автомобиль"),
+                types.KeyboardButton(text="Доступные автомобили")
+            ],
+        ]
+        keyboard = types.ReplyKeyboardMarkup(
+            keyboard=kb,
+            resize_keyboard=True,
+            input_field_placeholder="Выберите команду"
+        )
+        await message.answer("Добро пожаловать, пользователь!", reply_markup=keyboard)
+
+dp.message.register(send_welcome, Command("start"))
 
 # Основная функция для запуска бота
 async def main():
