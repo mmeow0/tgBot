@@ -122,12 +122,28 @@ async def available_cars(message: types.Message):
         await message.reply(f'Ошибка: {str(e)}')
         logger.error(f"Ошибка при запросе доступных автомобилей: {e}")
 
+# Команда для просмотра доступных автомобилей
+@dp.message(F.text.lower() == "все автомобили")
+async def view_cars(message: types.Message):
+    try:
+        async with db_pool.acquire() as connection:
+            cars = await connection.fetch('SELECT * FROM cars')
+            if cars:
+                car_list = ""
+                for car in cars:
+                    car_list += f"ID: {car['id']}, {car['brand']} {car['model']} (Класс: {car['car_class']})\n"
+                await message.reply(f'Все автомобили:\n{car_list}')
+            else:
+                await message.reply("Нет добавленных автомобилей.")
+    except Exception as e:
+        await message.reply(f'Ошибка: {str(e)}')
+
 async def send_welcome(message: types.Message):
     user_id = message.from_user.id
     if str(user_id) == ADMIN_ID:
         kb = [
             [
-                types.KeyboardButton(text="Доступные автомобили"),
+                types.KeyboardButton(text="Все автомобили"),
                 types.KeyboardButton(text="Добавить автомобиль")
             ],
         ]
