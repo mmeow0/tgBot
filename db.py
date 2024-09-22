@@ -22,7 +22,19 @@ class Database:
                 'INSERT INTO cars (brand, model, car_class, photos) VALUES ($1, $2, $3, $4)',
                 brand, model, car_class, photo_urls
             )
+
+    async def delete_car(self, car_id):
+        async with self.pool.acquire() as connection:
+            result = await connection.execute(
+                'DELETE FROM cars WHERE id = $1', car_id
+            )
+            # Проверяем, был ли удален автомобиль
+            return result == 'DELETE 1'  # Возвращает True, если автомобиль был удален
     
+    async def get_car_by_id(self, car_id):
+        async with self.pool.acquire() as connection:
+            return await connection.fetchrow('SELECT * FROM cars WHERE id = $1', car_id)
+
     async def is_car_available(self, car_id, start_time, end_time):
         async with self.pool.acquire() as connection:
             conflicts = await connection.fetch(
