@@ -1,7 +1,6 @@
 from aiogram import types
 import logging
 
-from config import ADMIN_ID
 from handlers.admin_handlers import CarClass
 
 logger = logging.getLogger(__name__)
@@ -17,12 +16,24 @@ class UserHandlers:
             [
                 types.InlineKeyboardButton(text="Эконом", callback_data="car_class_econom"),
                 types.InlineKeyboardButton(text="Комфорт", callback_data="car_class_comfort"),
-                types.InlineKeyboardButton(text="Бизнес", callback_data="car_class_business"),
+                types.InlineKeyboardButton(text="Комфорт +", callback_data="car_class_business"),
             ],
         ]
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=kb)
-        await callback_query.message.answer("Выберите класс автомобиля:", reply_markup=keyboard)
+        await callback_query.message.answer("🚗 Выберите класс автомобиля:", reply_markup=keyboard)
 
+
+    def construct_keyboard(self, length: int, page: int, selected_class: str) -> types.InlineKeyboardMarkup:
+            kb={'inline_keyboard': []}
+            buttons=[]
+            if page > 1:
+                buttons.append({'text':'<-', 'callback_data':f'page:{page-1}:{selected_class}'})
+            #adding a neat page number
+            buttons.append({'text':f'{page}/{length}', 'callback_data':'none'})
+            if page < length: #preventing going out of range
+                buttons.append({'text':'->', 'callback_data':f'page:{page+1}:{selected_class}'}) 
+            kb['inline_keyboard'].append(buttons)
+            return kb
 
     async def show_cars_by_class(self, callback_query: types.CallbackQuery):
         car_class_map = {
@@ -36,13 +47,37 @@ class UserHandlers:
 
         # Получаем автомобили по классу
         cars = await self.db.get_cars_by_class(class_name)
-
-        if cars:
-            car_list = "\n".join([f"{car['brand']} {car['model']} (ID: {car['id']})" for car in cars])
-            await callback_query.message.answer(f'Доступные автомобили класса {class_name}:\n{car_list}')
+        if len(cars) > 0:
+            car=cars[0]
+            await callback_query.message.answer_photo(
+                photo=car['photos'][0],
+                caption=f"{car['brand']} {car['model']} {car['year']} от {car['price']}р./день",
+                reply_markup=self.construct_keyboard(len(cars),1, selected_class)
+            )
         else:
             await callback_query.message.answer(f"Нет доступных автомобилей класса {class_name}.")
 
+    async def page(self, callback_query: types.CallbackQuery):
+        page=int(callback_query.data.split(':')[1])
+        selected_class=callback_query.data.split(':')[2]
+        
+        car_class_map = {
+            "car_class_econom": CarClass.ECONOM,
+            "car_class_comfort": CarClass.COMFORT,
+            "car_class_business": CarClass.BUSINESS,
+        }
+
+        class_name = car_class_map.get(selected_class)
+        # Получаем автомобили по классу
+        cars = await self.db.get_cars_by_class(class_name)
+        car = cars[page-1]
+        file = types.InputMediaPhoto(media=car['photos'][0], caption=f"{car['brand']} {car['model']} {car['year']} от {car['price']}р./день")
+        await callback_query.message.edit_media(
+                file,
+                reply_markup=self.construct_keyboard(len(cars), page, selected_class)
+            )
+
+                         
     async def rent_car(self, callback_query: types.CallbackQuery):
         command_parts = callback_query.message.text.split()
         

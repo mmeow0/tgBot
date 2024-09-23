@@ -14,26 +14,34 @@ class AddCarStates(StatesGroup):
     waiting_for_brand = State()
     waiting_for_model = State()
     waiting_for_class = State()
+    waiting_for_transmission = State()
+    waiting_for_year = State()
+    waiting_for_price = State()
+    waiting_for_doors = State()
     waiting_for_photo_urls = State()
 
 class CarClass:
     ECONOM = 'эконом'
     COMFORT = 'комфорт'
-    BUSINESS = 'бизнес'
+    BUSINESS = 'комфорт +'
+
+class CarTransmission:
+    MECANIC = 'механическая'
+    AUTO = 'автомат'
 
 class AdminHandlers:
     def __init__(self, db, bot):
         self.db = db
         self.bot = bot
 
-    async def start_add_car(self, message: types.Message, state: FSMContext):
-        logger.info(f"Пользователь {message.from_user.id} пытается добавить автомобиль")
-        if str(message.from_user.id) == ADMIN_ID:
-            await message.reply("Введите марку автомобиля:")
+    async def start_add_car(self, callback_query: types.CallbackQuery, state: FSMContext):
+        logger.info(f"Пользователь {callback_query.message.from_user.id} пытается добавить автомобиль")
+        if str(callback_query.from_user.id) == ADMIN_ID:
+            await callback_query.message.reply("Введите марку автомобиля:")
             await state.set_state(AddCarStates.waiting_for_brand)
         else:
-            await message.reply("У вас нет прав на выполнение этой команды.")
-            logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
+            await callback_query.message.reply("У вас нет прав на выполнение этой команды.")
+            logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
 
     async def car_brand_entered(self, message: types.Message, state: FSMContext):
         await state.update_data(brand=message.text)
@@ -46,7 +54,7 @@ class AdminHandlers:
             [
                 types.InlineKeyboardButton(text="Эконом", callback_data=CarClass.ECONOM),
                 types.InlineKeyboardButton(text="Комфорт", callback_data=CarClass.COMFORT),
-                types.InlineKeyboardButton(text="Бизнес", callback_data=CarClass.BUSINESS),
+                types.InlineKeyboardButton(text="Комфорт +", callback_data=CarClass.BUSINESS),
             ]
         ])
         await message.reply("Выберите класс автомобиля:", reply_markup=keyboard)
@@ -54,21 +62,55 @@ class AdminHandlers:
 
     async def car_class_entered(self, callback_query: types.CallbackQuery, state: FSMContext):
         car_class = callback_query.data
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="автомат", callback_data=CarTransmission.AUTO),
+                types.InlineKeyboardButton(text="механическая", callback_data=CarTransmission.MECANIC),
+            ]
+        ])
         await state.update_data(car_class=car_class)
-        await callback_query.message.reply("Введите URL фотографий автомобиля через пробел:")
+        await callback_query.message.reply("Выберете тип коробки передач:", reply_markup=keyboard)
+        await state.set_state(AddCarStates.waiting_for_transmission)
+
+    async def car_transmission_entered(self, callback_query: types.CallbackQuery, state: FSMContext):
+        await state.update_data(transmission=callback_query.data)
+        await callback_query.message.reply("Введите год выпуска автомобиля:")
+        await state.set_state(AddCarStates.waiting_for_year)
+
+    async def car_year_entered(self, message: types.Message, state: FSMContext):
+        car_year = message.text
+        await state.update_data(year=car_year)
+        await message.reply("Введите начальную цену р./день:")
+        await state.set_state(AddCarStates.waiting_for_price)
+
+    async def car_price_entered(self, message: types.Message, state: FSMContext):
+        car_price = message.text
+        await state.update_data(price=car_price)
+        await message.reply("Введите количество дверей у автомобиля:")
+        await state.set_state(AddCarStates.waiting_for_doors)
+
+    async def car_doors_entered(self, message: types.Message, state: FSMContext):
+        car_doors = message.text
+        await state.update_data(doors=car_doors)
+        await message.reply("Введите URL фотографии автомобиля:")
         await state.set_state(AddCarStates.waiting_for_photo_urls)
 
     async def car_photos_entered(self, message: types.Message, state: FSMContext):
         photo_urls = message.text.split()
         data = await state.get_data()
+        print(data)
 
         brand = data['brand']
         model = data['model']
         car_class = data['car_class']
+        transmission = data['transmission']
+        year = int(data['year'])
+        price = int(data['price'])
+        doors = int(data['doors'])
 
         # Добавляем автомобиль в базу данных
         try:
-            await self.db.add_car(brand, model, car_class, photo_urls)
+            await self.db.add_car(brand, model, car_class, transmission, year, price, doors, photo_urls)
             await message.reply(f'Автомобиль {brand} {model} добавлен в класс {car_class}.')
             logger.info(f"Автомобиль {brand} {model} успешно добавлен.")
         except Exception as e:
@@ -78,13 +120,13 @@ class AdminHandlers:
         # Сбрасываем состояние
         await state.clear()
 
-    async def start_delete_car(self, message: types.Message, state: FSMContext):
-        if str(message.from_user.id) == ADMIN_ID:
-            await message.reply("Введите ID автомобиля для удаления:")
+    async def start_delete_car(self, callback_query: types.CallbackQuery, state: FSMContext):
+        if str(callback_query.from_user.id) == ADMIN_ID:
+            await callback_query.message.reply("Введите ID автомобиля для удаления:")
             await state.set_state(DeleteCarStates.waiting_for_car_id)
         else:
-            await message.reply("У вас нет прав на выполнение этой команды.")
-            logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
+            await callback_query.message.reply("У вас нет прав на выполнение этой команды.")
+            logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
 
     async def confirm_delete_car(self, message: types.Message, state: FSMContext):
         if str(message.from_user.id) == ADMIN_ID:
@@ -119,18 +161,18 @@ class AdminHandlers:
             await message.reply("У вас нет прав на выполнение этой команды.")
             logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
 
-    async def view_cars(self, message: types.Message):
-        if str(message.from_user.id) == ADMIN_ID:
+    async def view_cars(self, callback_query: types.CallbackQuery):
+        if str(callback_query.from_user.id) == ADMIN_ID:
             cars = await self.db.get_all_cars()
             if cars:
-                car_list = "\n".join([f"ID: {car['id']}, {car['brand']} {car['model']} (Класс: {car['car_class']})" for car in cars])
-                await message.reply(f'Все автомобили:\n{car_list}')
+                car_list = "\n".join([f"ID: {car['id']}, {car['brand']} {car['model']} {car['year']} от {car['price']}р./день (Класс: {car['car_class']})" for car in cars])
+                await callback_query.message.reply(f'Все автомобили:\n{car_list}')
             else:
-                await message.reply("Нет добавленных автомобилей.")
+                await callback_query.message.reply("Нет добавленных автомобилей.")
         else:
-            await message.reply("У вас нет прав на выполнение этой команды.")
-            logger.warning(f"Пользователь {message.from_user.id} попытался выполнить команду без прав администратора.")
-        
+            await callback_query.message.reply("У вас нет прав на выполнение этой команды.")
+            logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
+    
     async def rent_car(self, message: types.Message):
         command_parts = message.text.split()
         car_id, start_time, end_time = int(command_parts[1]), command_parts[2], command_parts[3]

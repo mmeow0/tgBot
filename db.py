@@ -16,11 +16,11 @@ class Database:
             logger.error(f"Ошибка подключения к базе данных: {e}")
             raise e
 
-    async def add_car(self, brand, model, car_class, photo_urls):
+    async def add_car(self, brand, model, car_class, transmission, year, price, doors, photo_urls):
         async with self.pool.acquire() as connection:
             await connection.execute(
-                'INSERT INTO cars (brand, model, car_class, photos) VALUES ($1, $2, $3, $4)',
-                brand, model, car_class, photo_urls
+                'INSERT INTO cars (brand, model, car_class, transmission, year, price, doors, photos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                brand, model, car_class, transmission, year, price, doors, photo_urls
             )
 
     async def delete_car(self, car_id):
