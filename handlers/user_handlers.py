@@ -24,16 +24,27 @@ class UserHandlers:
 
 
     def construct_keyboard(self, length: int, page: int, selected_class: str) -> types.InlineKeyboardMarkup:
-            kb={'inline_keyboard': []}
-            buttons=[]
-            if page > 1:
-                buttons.append({'text':'<-', 'callback_data':f'page:{page-1}:{selected_class}'})
-            #adding a neat page number
-            buttons.append({'text':f'{page}/{length}', 'callback_data':'none'})
-            if page < length: #preventing going out of range
-                buttons.append({'text':'->', 'callback_data':f'page:{page+1}:{selected_class}'}) 
-            kb['inline_keyboard'].append(buttons)
-            return kb
+        kb = {'inline_keyboard': []}
+        buttons = []
+
+        # Кнопка "назад" для листания
+        if page > 1:
+            buttons.append({'text': '<-', 'callback_data': f'page:{page-1}:{selected_class}'})
+
+        # Отображение текущей страницы
+        buttons.append({'text': f'{page}/{length}', 'callback_data': 'none'})
+
+        # Кнопка "вперед" для листания
+        if page < length:  # предотвращаем выход за пределы
+            buttons.append({'text': '->', 'callback_data': f'page:{page+1}:{selected_class}'})
+
+        # Добавляем кнопки на первую строку клавиатуры
+        kb['inline_keyboard'].append(buttons)
+
+        # Добавляем кнопку "Назад к выбору класса" на новую строку
+        kb['inline_keyboard'].append([{'text': 'Назад к выбору класса', 'callback_data': 'show_fleet'}])
+
+        return kb
 
     async def show_cars_by_class(self, callback_query: types.CallbackQuery):
         car_class_map = {
