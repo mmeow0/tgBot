@@ -1,5 +1,6 @@
 import asyncpg
 import logging
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +63,30 @@ class Database:
         async with self.pool.acquire() as connection:
             query = "SELECT * FROM cars WHERE car_class = $1"
             return await connection.fetch(query, car_class)
+        
+    async def get_available_dates(self, car_id: int):
+        async with self.pool.acquire() as connection:
+            # Получаем все забронированные периоды для данного автомобиля
+            rows = await connection.fetch("""
+                SELECT start_time, end_time FROM rentals WHERE car_id = $1 AND status = $2
+            """, car_id, 'active')
+
+            # Создаем список занятых дат
+            booked_dates = set()
+            for row in rows:
+                start_date = row['start_time'].date()
+                end_date = row['end_time'].date()
+                current_date = start_date
+                while current_date <= end_date:
+                    booked_dates.add(current_date)
+                    current_date += timedelta(days=1)
+
+            # Определяем доступные даты (например, на ближайший месяц)
+            today = datetime.today().date()
+            available_dates = []
+            for i in range(30):  # проверка на ближайшие 30 дней
+                check_date = today + timedelta(days=i)
+                if check_date not in booked_dates:
+                    available_dates.append(check_date.strftime('%Y-%m-%d'))
+
+            return available_dates
