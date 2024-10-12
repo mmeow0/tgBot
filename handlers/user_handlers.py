@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 ADMIN_CHAT_ID = 00000  # ID администратора, сюда отправляются уведомления
 
 class SelectDatesStates(StatesGroup):
+    waiting_car_id = State()
     waiting_for_start_date = State()
     waiting_for_end_date = State()
 
@@ -49,7 +50,7 @@ class UserHandlers:
 
         return kb
 
-    async def show_cars_by_class(self, callback_query: types.CallbackQuery):
+    async def show_cars_by_class(self, callback_query: types.CallbackQuery, state: FSMContext):
         car_class_map = {
             "car_class_econom": CarClass.ECONOM,
             "car_class_comfort": CarClass.COMFORT,
@@ -68,10 +69,11 @@ class UserHandlers:
                 caption=f"{car['brand']} {car['model']} {car['year']} от {car['price']}р./день",
                 reply_markup=self.construct_keyboard(len(cars), 1, selected_class)
             )
+            await state.update_data(car_id=car['id'])
         else:
             await callback_query.message.answer(f"Нет доступных автомобилей класса {class_name}.")
 
-    async def page(self, callback_query: types.CallbackQuery):
+    async def page(self, callback_query: types.CallbackQuery, state: FSMContext):
         page = int(callback_query.data.split(':')[1])
         selected_class = callback_query.data.split(':')[2]
         
@@ -86,6 +88,7 @@ class UserHandlers:
         cars = await self.db.get_cars_by_class(class_name)
         car = cars[page - 1]
         file = types.InputMediaPhoto(media=car['photos'][0], caption=f"{car['brand']} {car['model']} {car['year']} от {car['price']}р./день")
+        await state.update_data(car_id=car['id'])
         await callback_query.message.edit_media(
             file,
             reply_markup=self.construct_keyboard(len(cars), page, selected_class)
@@ -161,25 +164,40 @@ class UserHandlers:
         selected, end_date = await calendar.process_selection(callback_query, callback_data)
 
         if selected:
-            # Получаем дату начала из состояния
+            # Получаем дату начала и информацию об автомобиле из состояния
             user_data = await state.get_data()
             start_date = user_data.get("start_date")
+            car_id = user_data.get("car_id")  # Получаем ID автомобиля из состояния
 
-            if start_date:
+            if start_date and car_id:
+                # Получаем информацию об автомобиле из базы данных
+                car_info = await self.db.get_car_by_id(car_id)  # Метод получения автомобиля по ID
+                if car_info:
+                    car_details = f"{car_info['brand']} {car_info['model']} ({car_info['car_class']})"
+                else:
+                    car_details = "Неизвестный автомобиль"
+
                 await callback_query.message.answer(f"Вы выбрали дату окончания аренды: {end_date.strftime('%Y-%m-%d')}")
                 
-                # Здесь можно добавить логику для обработки аренды (например, отправить запрос администратору)
+                # Сообщаем пользователю, что запрос на аренду отправлен
                 await callback_query.message.answer("Ваш запрос на аренду отправлен администратору. Ожидайте подтверждения.")
+
+                kb = [
+                        [
+                            types.InlineKeyboardButton(text="Подтвердить бронирование", callback_data=f"confirm_booking:{callback_query.from_user.id}:{car_id}:{start_date.strftime('%Y-%m-%d')}:{end_date.strftime('%Y-%m-%d')}")
+                        ],
+                    ]
+                confirm_keyboard = types.InlineKeyboardMarkup(inline_keyboard=kb)
 
                 # Отправка информации администратору
                 await self.bot.send_message(
                     ADMIN_CHAT_ID,
-                    f"Пользователь {callback_query.from_user.full_name} (ID: {callback_query.from_user.id}) "
-                    f"сделал запрос на аренду автомобиля с {start_date.strftime('%Y-%m-%d')} по {end_date.strftime('%Y-%m-%d')}.\n"
-                    f"Свяжитесь с ним для подтверждения бронирования."
+                    f"Пользователь {callback_query.from_user.full_name} (ID: {callback_query.from_user.id}, Никнейм: @{callback_query.from_user.username}) "
+                    f"сделал запрос на аренду автомобиля {car_details} (ID: {car_id}) с {start_date.strftime('%Y-%m-%d')} по {end_date.strftime('%Y-%m-%d')}.\n"
+                    f"Свяжитесь с ним для подтверждения бронирования.", reply_markup=confirm_keyboard
                 )
             else:
-                await callback_query.message.answer("Ошибка: не удалось получить дату начала аренды.")
+                await callback_query.message.answer("Ошибка: не удалось получить дату начала аренды или информацию об автомобиле.")
 
 
     async def available_cars(self, callback_query: types.CallbackQuery):

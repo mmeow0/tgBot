@@ -32,7 +32,6 @@ async def main():
 
     # пользовательские функции 
     userHandlers = UserHandlers(db, bot)
-    dp.message.register(userHandlers.rent_car, lambda msg: RENT_CAR_COMMAND in msg.text)
     dp.callback_query.register(userHandlers.show_fleet, lambda c: c.data == SHOW_FLEET_COMMAND)
     dp.callback_query.register(userHandlers.show_cars_by_class, lambda c: c.data in ["car_class_econom", "car_class_comfort", "car_class_business"])
     dp.callback_query.register(userHandlers.page, lambda c: 'page' in c.data )
@@ -52,6 +51,7 @@ async def main():
     dp.message.register(admin_handlers.car_price_entered, AddCarStates.waiting_for_price)
     dp.message.register(admin_handlers.car_doors_entered, AddCarStates.waiting_for_doors)
     dp.message.register(admin_handlers.car_photos_entered, AddCarStates.waiting_for_photo_urls)
+    dp.callback_query.register(admin_handlers.confirm_booking, lambda c: "confirm_booking" in c.data)
 
     dp.callback_query.register(admin_handlers.start_delete_car, lambda c: c.data == DELETE_CAR_COMMAND)
     dp.message.register(admin_handlers.confirm_delete_car, DeleteCarStates.waiting_for_car_id)

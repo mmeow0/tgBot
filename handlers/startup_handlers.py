@@ -17,7 +17,11 @@ class StartupHandlers:
             kb = [
                     [types.InlineKeyboardButton(text="🚗 Список автомобилей", callback_data=ALL_CARS_COMMAND)],
                     [types.InlineKeyboardButton(text="➕ Добавить автомобиль", callback_data=ADD_CAR_COMMAND)],
-                    [types.InlineKeyboardButton(text="➖ Удалить автомобиль", callback_data=DELETE_CAR_COMMAND)]
+                    [types.InlineKeyboardButton(text="➖ Удалить автомобиль", callback_data=DELETE_CAR_COMMAND)],
+                    [types.InlineKeyboardButton(text="Пользовательские функции: 🚗 Автопарк", callback_data=SHOW_FLEET_COMMAND)],
+                    [types.InlineKeyboardButton(text="Пользовательские функции: 📝 Условия аренды", callback_data=SHOW_FLEET_COMMAND)],
+                    [types.InlineKeyboardButton(text="Пользовательские функции: 📞 Наши контакты", callback_data=SHOW_FLEET_COMMAND)],
+                    [types.InlineKeyboardButton(text="Пользовательские функции: 🙋‍♂️ Написать менеджеру", callback_data=SHOW_FLEET_COMMAND)],
             ]
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=kb)
             await message.answer(WELCOME_ADMIN, reply_markup=keyboard)
@@ -27,7 +31,6 @@ class StartupHandlers:
                 [types.InlineKeyboardButton(text="📝 Условия аренды", callback_data=SHOW_FLEET_COMMAND)],
                 [types.InlineKeyboardButton(text="📞 Наши контакты", callback_data=SHOW_FLEET_COMMAND)],
                 [types.InlineKeyboardButton(text="🙋‍♂️ Написать менеджеру", callback_data=SHOW_FLEET_COMMAND)],
-                [types.InlineKeyboardButton(text=RENT_CAR_COMMAND, callback_data='rent_car')]
             ]
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=kb)
             await message.answer_photo(
