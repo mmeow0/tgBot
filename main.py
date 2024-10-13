@@ -27,7 +27,7 @@ async def main():
 
     startupHandlers = StartupHandlers(db, bot)
     dp.message.register(startupHandlers.send_welcome, Command("start"))
-    dp.message.register(startupHandlers.send_welcome, Command("menu"))
+    dp.message.register(startupHandlers.send_welcome, Command(MENU_COMMAND))
     dp.message.register(startupHandlers.send_welcome, lambda msg: MENU_COMMAND in msg.text)
 
     # пользовательские функции 

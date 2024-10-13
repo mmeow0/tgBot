@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
 from config import ADMIN_ID
 from handlers.admin_handlers import CarClass
+from handlers.messages import SHOW_FLEET_COMMAND
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,8 @@ class UserHandlers:
             buttons.append({'text': '->', 'callback_data': f'page:{page+1}:{selected_class}'})
 
         kb['inline_keyboard'].append(buttons)
-        kb['inline_keyboard'].append([{'text': 'Назад к выбору класса', 'callback_data': 'show_fleet'}])
-        kb['inline_keyboard'].append([{'text': 'Выбрать даты', 'callback_data': 'select_dates'}])  # Кнопка для выбора дат
-
+        kb['inline_keyboard'].append([{'text': 'Назад к выбору класса', 'callback_data': SHOW_FLEET_COMMAND}])
+        kb['inline_keyboard'].append([{'text': 'Выбрать даты', 'callback_data': 'select_dates'}])
         return kb
 
     async def show_cars_by_class(self, callback_query: types.CallbackQuery, state: FSMContext):
@@ -61,7 +61,6 @@ class UserHandlers:
         selected_class = callback_query.data
         class_name = car_class_map.get(selected_class)
 
-        # Получаем автомобили по классу
         cars = await self.db.get_cars_by_class(class_name)
         if len(cars) > 0:
             car = cars[0]
@@ -71,6 +70,7 @@ class UserHandlers:
                 reply_markup=self.construct_keyboard(len(cars), 1, selected_class)
             )
             await state.update_data(car_id=car['id'])
+            await callback_query.message.delete()
         else:
             await callback_query.message.answer(f"Нет доступных автомобилей класса {class_name}.")
 
@@ -94,31 +94,6 @@ class UserHandlers:
             file,
             reply_markup=self.construct_keyboard(len(cars), page, selected_class)
         )
-
-    async def rent_car(self, callback_query: types.CallbackQuery):
-        command_parts = callback_query.message.text.split()
-        
-        if len(command_parts) < 4:
-            await callback_query.message.reply("Пожалуйста, введите ID автомобиля и даты (начало и конец) в формате: /rent_car <ID> <начало> <конец>.")
-            return
-        
-        try:
-            car_id = int(command_parts[1])
-            start_time = command_parts[2]
-            end_time = command_parts[3]
-
-            available = await self.db.is_car_available(car_id, start_time, end_time)
-            if not available:
-                await callback_query.message.reply("Автомобиль недоступен на выбранное время.")
-                return
-
-            await self.db.rent_car(car_id, callback_query.message.from_user.id, start_time, end_time)
-            await callback_query.message.reply("Аренда успешно оформлена.")
-        except ValueError:
-            await callback_query.message.reply("ID автомобиля должен быть числом.")
-        except Exception as e:
-            await callback_query.message.reply(f"Произошла ошибка: {str(e)}")
-            logger.error(f"Ошибка при аренде автомобиля: {e}")
 
     async def start_date_selection(self, callback_query: types.CallbackQuery, state: FSMContext):
         """Запуск выбора даты начала аренды с помощью календаря"""
