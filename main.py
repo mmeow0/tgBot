@@ -6,7 +6,7 @@ from config import BOT_TOKEN, DATABASE_URL
 from aiogram.types import BotCommand
 from aiogram_calendar import SimpleCalendarCallback
 from db import Database
-from handlers.messages import ADD_CAR_COMMAND, ALL_CARS_COMMAND, DELETE_CAR_COMMAND, MENU_COMMAND, RENT_CAR_COMMAND, SHOW_FLEET_COMMAND
+from handlers.messages import ADD_CAR_COMMAND, ALL_CARS_COMMAND, DELETE_CAR_COMMAND, MENU_COMMAND, SHOW_CONTACTS_COMMAND, SHOW_FLEET_COMMAND, SHOW_RENTAL_TERMS_COMMAND
 from handlers.user_handlers import SelectDatesStates, UserHandlers
 from handlers.admin_handlers import AddCarStates, AdminHandlers, CarClass, CarTransmission, DeleteCarStates
 from handlers.startup_handlers import StartupHandlers
@@ -38,6 +38,8 @@ async def main():
     dp.callback_query.register(userHandlers.start_date_selection, lambda c: c.data == "select_dates")
     dp.callback_query.register(userHandlers.process_date_selection, SelectDatesStates.waiting_for_start_date, SimpleCalendarCallback.filter())
     dp.callback_query.register(userHandlers.process_end_date_selection, SelectDatesStates.waiting_for_end_date, SimpleCalendarCallback.filter())
+    dp.callback_query.register(userHandlers.handle_show_contacts, lambda c: c.data == SHOW_CONTACTS_COMMAND)
+    dp.callback_query.register(userHandlers.handle_show_rental_terms, lambda c: c.data == SHOW_RENTAL_TERMS_COMMAND)
 
 
     # административные функции 

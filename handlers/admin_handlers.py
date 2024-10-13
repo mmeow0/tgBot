@@ -197,8 +197,6 @@ class AdminHandlers:
                 )
             else:
                 await callback_query.answer("Извините, автомобиль недоступен в эти даты.")
-            
-            await callback_query.message.delete()
         else:
             await callback_query.message.reply("У вас нет прав на выполнение этой команды.")
             logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
