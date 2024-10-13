@@ -25,7 +25,7 @@ pip install aiogram aiogram-calendar asyncpg python-dotenv
 
 ```bash
 BOT_TOKEN=ваш_токен_бота
-ADMIN_CHAT_ID=ваш_ID_администратора
+ADMIN_ID=ваш_ID_администратора
 DATABASE_URL=ваша_URL_базы_данных 
 // пример DATABASE_URL: postgresql://postgres_username:@localhost:5432/database_name
 ```
