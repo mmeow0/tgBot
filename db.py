@@ -87,6 +87,26 @@ class Database:
             for i in range(30):  # проверка на ближайшие 30 дней
                 check_date = today + timedelta(days=i)
                 if check_date not in booked_dates:
-                    available_dates.append(check_date.strftime('%Y-%m-%d'))
+                    available_dates.append(check_date.strftime('%d.%m.%Y'))
 
             return available_dates
+        
+    async def get_busy_dates(self, car_id: int):
+        async with self.pool.acquire() as connection:
+            # Получаем все забронированные периоды для данного автомобиля
+            rows = await connection.fetch("""
+                SELECT start_time, end_time FROM rentals WHERE car_id = $1 AND status = $2
+            """, car_id, 'active')
+
+            # Создаем список занятых периодов
+            busy_periods = []
+            for row in rows:
+                start_date = row['start_time'].date()
+                end_date = row['end_time'].date()
+                busy_periods.append((start_date, end_date))
+
+            # Сортируем занятые периоды по начальной дате
+            busy_periods_sorted = sorted(busy_periods, key=lambda period: period[0])
+
+            return busy_periods_sorted
+

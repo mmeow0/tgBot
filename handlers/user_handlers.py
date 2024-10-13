@@ -4,11 +4,12 @@ from aiogram.filters.callback_data import CallbackData
 import logging
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
-from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
+from config import ADMIN_ID
 from handlers.admin_handlers import CarClass
 
 logger = logging.getLogger(__name__)
-ADMIN_CHAT_ID = 00000  # ID администратора, сюда отправляются уведомления
 
 class SelectDatesStates(StatesGroup):
     waiting_car_id = State()
@@ -121,8 +122,9 @@ class UserHandlers:
 
     async def start_date_selection(self, callback_query: types.CallbackQuery, state: FSMContext):
         """Запуск выбора даты начала аренды с помощью календаря"""
-        reply_markup=await SimpleCalendar(locale=await get_user_locale(callback_query.from_user)).start_calendar()
-        await callback_query.message.answer("Выберите дату начала аренды:", reply_markup=reply_markup)
+        calendar = SimpleCalendar(locale=await get_user_locale(callback_query.from_user))
+        calendar.set_dates_range(datetime.today(), (datetime.today() + relativedelta(months=6)))
+        await callback_query.message.answer("Выберите дату начала аренды:", reply_markup=await calendar.start_calendar())
         
         # Установка состояния ожидания даты начала
         await state.set_state(SelectDatesStates.waiting_for_start_date)
@@ -131,7 +133,7 @@ class UserHandlers:
         calendar = SimpleCalendar(
             locale=await get_user_locale(message.from_user), show_alerts=True
         )
-        calendar.set_dates_range(datetime(2022, 1, 1), datetime(2025, 12, 31))
+        calendar.set_dates_range(datetime.today(), (datetime.today() + relativedelta(months=6)))
         await message.answer(
             "Calendar opened on feb 2023. Please select a date: ",
             reply_markup=await calendar.start_calendar(year=2023, month=2)
@@ -143,62 +145,93 @@ class UserHandlers:
         calendar = SimpleCalendar(
         locale=await get_user_locale(callback_query.from_user), show_alerts=True
     )
-        calendar.set_dates_range(datetime(2022, 1, 1), datetime(2025, 12, 31))
+        calendar.set_dates_range(datetime.today(), (datetime.today() + relativedelta(months=6)))
         selected, date = await calendar.process_selection(callback_query, callback_data)
         if selected:
                # Сохраняем выбранную дату начала аренды в состояние
             await state.update_data(start_date=date)
             reply_markup = await SimpleCalendar(locale=await get_user_locale(callback_query.from_user)).start_calendar()
-            await callback_query.message.answer(f"Дата начала аренды: {date.strftime('%Y-%m-%d')}. Теперь выберете дату окончания аренды", reply_markup=reply_markup)
+            await callback_query.message.edit_text(f"Дата начала аренды: {date.strftime('%d.%m.%Y')}. Теперь выберете дату окончания аренды", reply_markup=reply_markup)
 
             # Установка состояния ожидания даты окончания
             await state.set_state(SelectDatesStates.waiting_for_end_date)
 
+    async def get_available_dates(self, car_id: int):
+        # Получаем занятые даты
+        busy_periods = await self.get_busy_dates(car_id)
+
+        # Определяем доступные даты (например, на ближайшие 30 дней)
+        today = datetime.today().date()
+        available_dates = []
+        
+        for i in range(30):  # проверка на ближайшие 30 дней
+            check_date = today + timedelta(days=i)
+            is_available = True
+            
+            # Проверяем, есть ли занятые периоды, перекрывающиеся с текущей датой
+            for start, end in busy_periods:
+                if start <= check_date <= end:
+                    is_available = False
+                    break
+            
+            if is_available:
+                available_dates.append(check_date.strftime('%d.%m.%Y'))
+
+        return available_dates
+    
     async def process_end_date_selection(self, callback_query: types.CallbackQuery, state: FSMContext, callback_data: CallbackData):
         """Обработка выбора даты окончания аренды с помощью календаря"""
-        # Извлечение данных из callback_data
         calendar = SimpleCalendar(
             locale=await get_user_locale(callback_query.from_user), show_alerts=True
         )
-        calendar.set_dates_range(datetime(2022, 1, 1), datetime(2025, 12, 31))
         selected, end_date = await calendar.process_selection(callback_query, callback_data)
 
         if selected:
-            # Получаем дату начала и информацию об автомобиле из состояния
             user_data = await state.get_data()
             start_date = user_data.get("start_date")
             car_id = user_data.get("car_id")  # Получаем ID автомобиля из состояния
 
             if start_date and car_id:
+                # Проверяем доступность автомобиля
+                available = await self.db.is_car_available(car_id, start_date, end_date)
+                if not available:
+                    # Получаем все занятые даты для данного автомобиля
+                    busy_periods = await self.db.get_busy_dates(car_id)
+                    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                        [types.InlineKeyboardButton(text="Выбрать другой период", callback_data="select_dates")],
+                        [types.InlineKeyboardButton(text="Написать менеджеру", url=f"tg://user?id={ADMIN_ID}")]
+                    ])
+                    # Формируем сообщение о занятости автомобиля
+                    busy_periods_str = "\n".join(f"{start.strftime('%d.%m.%Y')}-{end.strftime('%d.%m.%Y')}" for start, end in busy_periods)
+                    await callback_query.message.edit_text(f"Невозможно арендовать автомобиль с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')}. "
+                                                        f"Автомобиль занят на эти даты: \n{busy_periods_str}.", reply_markup=keyboard)
+                    return
+                
                 # Получаем информацию об автомобиле из базы данных
-                car_info = await self.db.get_car_by_id(car_id)  # Метод получения автомобиля по ID
+                car_info = await self.db.get_car_by_id(car_id)
                 if car_info:
                     car_details = f"{car_info['brand']} {car_info['model']} ({car_info['car_class']})"
                 else:
                     car_details = "Неизвестный автомобиль"
 
-                await callback_query.message.answer(f"Вы выбрали дату окончания аренды: {end_date.strftime('%Y-%m-%d')}")
-                
-                # Сообщаем пользователю, что запрос на аренду отправлен
-                await callback_query.message.answer("Ваш запрос на аренду отправлен администратору. Ожидайте подтверждения.")
+                await callback_query.message.edit_text(f"Выбранный период аренды: {start_date.strftime('%d.%m.%Y')}-{end_date.strftime('%d.%m.%Y')} для {car_details}.\nВаш запрос на аренду отправлен администратору. Ожидайте подтверждения.")
 
                 kb = [
-                        [
-                            types.InlineKeyboardButton(text="Подтвердить бронирование", callback_data=f"confirm_booking:{callback_query.from_user.id}:{car_id}:{start_date.strftime('%Y-%m-%d')}:{end_date.strftime('%Y-%m-%d')}")
-                        ],
-                    ]
+                    [
+                        types.InlineKeyboardButton(text="Подтвердить бронирование", callback_data=f"confirm_booking:{callback_query.from_user.id}:{car_id}:{start_date.strftime('%d.%m.%Y')}:{end_date.strftime('%d.%m.%Y')}")
+                    ],
+                ]
                 confirm_keyboard = types.InlineKeyboardMarkup(inline_keyboard=kb)
 
                 # Отправка информации администратору
                 await self.bot.send_message(
-                    ADMIN_CHAT_ID,
+                    ADMIN_ID,
                     f"Пользователь {callback_query.from_user.full_name} (ID: {callback_query.from_user.id}, Никнейм: @{callback_query.from_user.username}) "
-                    f"сделал запрос на аренду автомобиля {car_details} (ID: {car_id}) с {start_date.strftime('%Y-%m-%d')} по {end_date.strftime('%Y-%m-%d')}.\n"
+                    f"сделал запрос на аренду автомобиля {car_details} (ID: {car_id}) с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')}.\n"
                     f"Свяжитесь с ним для подтверждения бронирования.", reply_markup=confirm_keyboard
                 )
             else:
                 await callback_query.message.answer("Ошибка: не удалось получить дату начала аренды или информацию об автомобиле.")
-
 
     async def available_cars(self, callback_query: types.CallbackQuery):
         cars = await self.db.get_all_cars()

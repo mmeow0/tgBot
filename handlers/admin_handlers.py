@@ -175,26 +175,30 @@ class AdminHandlers:
             logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
     
     async def confirm_booking(self, callback_query: types.CallbackQuery):
-        _, user_id, car_id, start_date, end_date = callback_query.data.split(":")
+        if str(callback_query.from_user.id) == ADMIN_ID:
+            _, user_id, car_id, start_date, end_date = callback_query.data.split(":")
 
-        start_date = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            start_date = datetime.strptime(start_date, '%d.%m.%Y')
+            end_date = datetime.strptime(end_date, '%d.%m.%Y')
 
-        user_id = int(user_id) 
-        car_id = int(car_id)
+            user_id = int(user_id) 
+            car_id = int(car_id)
 
-        is_available = await self.db.is_car_available(car_id, start_date, end_date)
-        
-        if is_available:
-            await self.db.rent_car(car_id, user_id, start_date, end_date)
+            is_available = await self.db.is_car_available(car_id, start_date, end_date)
+            
+            if is_available:
+                await self.db.rent_car(car_id, user_id, start_date, end_date)
 
-            await callback_query.answer("Бронирование подтверждено!")
+                await callback_query.answer("Бронирование подтверждено!")
 
-            await self.bot.send_message(
-                user_id,
-                f"Ваше бронирование автомобиля с {start_date.strftime('%Y-%m-%d')} по {end_date.strftime('%Y-%m-%d')} подтверждено!"
-            )
+                await self.bot.send_message(
+                    user_id,
+                    f"Ваше бронирование автомобиля с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')} подтверждено!"
+                )
+            else:
+                await callback_query.answer("Извините, автомобиль недоступен в эти даты.")
+            
+            await callback_query.message.delete()
         else:
-            await callback_query.answer("Извините, автомобиль недоступен в эти даты.")
-        
-        await callback_query.message.delete()
+            await callback_query.message.reply("У вас нет прав на выполнение этой команды.")
+            logger.warning(f"Пользователь {callback_query.message.from_user.id} попытался выполнить команду без прав администратора.")
